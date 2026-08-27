@@ -31,17 +31,17 @@ from build_structural_sme_request_pack import (  # noqa: E402
     SheetSpec,
     write_xlsx,
 )
-from request_ai_agent_h8_v0.analysis_type_master import ANALYSIS_TYPE_MASTER  # noqa: E402
-from request_ai_agent_h8_v0.condition_fieldsets import (  # noqa: E402
+from request_ai_agent_i0_0.analysis_type_master import ANALYSIS_TYPE_MASTER  # noqa: E402
+from request_ai_agent_i0_0.condition_fieldsets import (  # noqa: E402
     build_condition_fieldset,
     get_active_case_matrix_columns,
 )
-from request_ai_agent_h8_v0.constants import (  # noqa: E402
+from request_ai_agent_i0_0.constants import (  # noqa: E402
     ANALYSIS_TYPE_OPTIONS,
     DISABLED_ANALYSIS_TYPE_OPTIONS,
     ENABLED_ANALYSIS_TYPE_OPTIONS,
 )
-from request_ai_agent_h8_v0.normalized_product_hierarchy import (  # noqa: E402
+from request_ai_agent_i0_0.normalized_product_hierarchy import (  # noqa: E402
     NORMALIZED_PRODUCT_HIERARCHY,
 )
 
@@ -108,7 +108,7 @@ def _test_function_count(path: Path) -> int:
 
 
 def _test_inventory() -> tuple[tuple[str, int, str], ...]:
-    tests_dir = ROOT / "request_ai_agent_h8_v0" / "tests"
+    tests_dir = ROOT / "request_ai_agent_i0_0" / "tests"
     rows = []
     for path in sorted(tests_dir.glob("test_*.py"), key=lambda item: item.name):
         name = path.name
@@ -438,16 +438,16 @@ def _source_rows() -> tuple[tuple[str, ...], ...]:
     tests = _test_inventory()
     return (
         ("기준", "기준일", REFERENCE_DATE, "보고 Backdata 기준일", "고정", "00_보고요약"),
-        ("코드", "해석유형 Catalog", "request_ai_agent_h8_v0/constants.py", f"전체 {len(ANALYSIS_TYPE_OPTIONS)} / 활성 {len(ENABLED_ANALYSIS_TYPE_OPTIONS)} / 예정 {len(DISABLED_ANALYSIS_TYPE_OPTIONS)}", "직접 import", "02_해석유형"),
-        ("코드", "유형별 조건·Case", "request_ai_agent_h8_v0/condition_fieldsets.py", "활성 Field와 Case 열", "직접 import", "05_유형별_조건Matrix"),
-        ("코드", "제품 분류", "request_ai_agent_h8_v0/normalized_product_hierarchy.py", f"{business_units}/{product_groups}/{platforms}", "직접 import", "06_제품분류"),
-        ("코드", "State·제품·Case", "request_ai_agent_h8_v0/state.py", "정규화·수동 Case", "코드 추적", "04·08"),
-        ("코드", "검증", "request_ai_agent_h8_v0/validator.py", "필수 Field·제품·조건·Case·Coverage", "코드 추적", "03·04·08"),
-        ("코드", "Agent", "request_ai_agent_h8_v0/agent_decision.py", "질문·제안·명확화·오류 복구", "코드 추적", "04_사용자시나리오"),
-        ("코드", "Word", "request_ai_agent_h8_v0/word_export.py", "미리보기 기반 DOCX", "코드 추적", "04_사용자시나리오"),
+        ("코드", "해석유형 Catalog", "request_ai_agent_i0_0/constants.py", f"전체 {len(ANALYSIS_TYPE_OPTIONS)} / 활성 {len(ENABLED_ANALYSIS_TYPE_OPTIONS)} / 예정 {len(DISABLED_ANALYSIS_TYPE_OPTIONS)}", "직접 import", "02_해석유형"),
+        ("코드", "유형별 조건·Case", "request_ai_agent_i0_0/condition_fieldsets.py", "활성 Field와 Case 열", "직접 import", "05_유형별_조건Matrix"),
+        ("코드", "제품 분류", "request_ai_agent_i0_0/normalized_product_hierarchy.py", f"{business_units}/{product_groups}/{platforms}", "직접 import", "06_제품분류"),
+        ("코드", "State·제품·Case", "request_ai_agent_i0_0/state.py", "정규화·수동 Case", "코드 추적", "04·08"),
+        ("코드", "검증", "request_ai_agent_i0_0/validator.py", "필수 Field·제품·조건·Case·Coverage", "코드 추적", "03·04·08"),
+        ("코드", "Agent", "request_ai_agent_i0_0/agent_decision.py", "질문·제안·명확화·오류 복구", "코드 추적", "04_사용자시나리오"),
+        ("코드", "Word", "request_ai_agent_i0_0/word_export.py", "미리보기 기반 DOCX", "코드 추적", "04_사용자시나리오"),
         ("문서", "현행 CFD 기준", "docs/structural_analysis_sme_request/04_h7_v0_현행_유동해석_기준.md", "2026-08-20 역정리", "기존 기준", "전체"),
         ("문서", "현행 Field Master", "docs/structural_analysis_sme_request/h7_v0_현행_유동해석_Field_Master.xlsx", f"Field {len(_common_field_rows())} / 객체 {len(_object_rows())} / Case {len(_case_rule_rows())} / Gap {len(_gap_rows())}", "기존 산출물", "07·08·11"),
-        ("테스트", "자동화 테스트", "request_ai_agent_h8_v0/tests", f"{len(tests)}개 파일 / {sum(row[1] for row in tests)}개 함수", "AST 집계", "09_검증근거"),
+        ("테스트", "자동화 테스트", "request_ai_agent_i0_0/tests", f"{len(tests)}개 파일 / {sum(row[1] for row in tests)}개 함수", "AST 집계", "09_검증근거"),
         ("산정", "해석유형 구현률", "활성 / 전체 Catalog", f"{len(ENABLED_ANALYSIS_TYPE_OPTIONS)}/{len(ANALYSIS_TYPE_OPTIONS)}={_percent(len(ENABLED_ANALYSIS_TYPE_OPTIONS), len(ANALYSIS_TYPE_OPTIONS))}", "부분 적용 가중 없음", "00·01·03"),
     )
 

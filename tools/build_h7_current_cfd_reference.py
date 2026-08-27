@@ -28,17 +28,17 @@ from build_structural_sme_request_pack import (  # noqa: E402
     _add_table,
     write_xlsx,
 )
-from request_ai_agent_h8_v0.analysis_type_master import ANALYSIS_TYPE_MASTER  # noqa: E402
-from request_ai_agent_h8_v0.condition_fieldsets import (  # noqa: E402
+from request_ai_agent_i0_0.analysis_type_master import ANALYSIS_TYPE_MASTER  # noqa: E402
+from request_ai_agent_i0_0.condition_fieldsets import (  # noqa: E402
     build_condition_fieldset,
     get_active_case_matrix_columns,
 )
-from request_ai_agent_h8_v0.constants import (  # noqa: E402
+from request_ai_agent_i0_0.constants import (  # noqa: E402
     ANALYSIS_TYPE_OPTIONS,
     DISABLED_ANALYSIS_TYPE_OPTIONS,
     ENABLED_ANALYSIS_TYPE_OPTIONS,
 )
-from request_ai_agent_h8_v0.schema import (  # noqa: E402
+from request_ai_agent_i0_0.schema import (  # noqa: E402
     ANALYSIS_OVERVIEW_SPECS,
     BASIC_INFO_SPECS,
 )
