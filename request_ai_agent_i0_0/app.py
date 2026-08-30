@@ -100,6 +100,12 @@ from .validator import state_with_validation, validate_state
 from .word_export import DOCX_MIMETYPE, build_word_docx, word_filename
 from .workflow_machine import ConversationWorkflowMachine, WorkflowEvent, WorkflowEventType
 
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+from .database import SessionLocal
+from .db_models import User
+from .submission_service import save_initial_submission
+
 
 STAGE_NAME = "stage09_condition_state_progress_20260630"
 PROPOSAL_SOURCE_SECTIONS = {
@@ -115,12 +121,16 @@ PROPOSAL_STALE_LABELS = {
     "case_matrix": "Case Matrix 매핑이 변경되었습니다.",
 }
 LLM_CHAT_INTENTS = {"patch", "general_qa", "rag_qa", "current_input", "needs_clarification"}
+SUBMISSION_CONSENT_STATEMENT = (
+    "현재 입력한 의뢰 내용으로 "
+    "해석을 진행하는 것에 동의합니다."
+)
 FEATURE_LOCKS = {
     "ppt_io": False,
     "image_capture_input": False,
     "preview_screen": False,
-    "word_export": True,
-    "dbms_integration": False,
+    "word_export": False,
+    "dbms_integration": True,
     "vision_ai": False,
     "analysis_type_recommendation": False,
     "condition_recommendation": False,
@@ -211,6 +221,35 @@ def _disabled_db_upload() -> dict[str, Any]:
         "status": "disabled",
         "message": FEATURE_DISABLED_MESSAGE,
     }
+
+def _submission_user_id() -> int:
+    user_code = str(
+        os.getenv(
+            "REQUEST_AGENT_SUBMITTER_USER_CODE",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not user_code:
+        raise RuntimeError(
+            "REQUEST_AGENT_SUBMITTER_USER_CODE is not configured."
+        )
+
+    with SessionLocal() as db:
+        user_id = db.scalar(
+            select(User.id).where(
+                User.user_code == user_code,
+                User.role == "REQUESTER",
+            )
+        )
+
+    if user_id is None:
+        raise RuntimeError(
+            f"submission requester not found: {user_code}"
+        )
+
+    return int(user_id)
 
 def _db_upload_message(db_upload: Mapping[str, Any]) -> str:
     if not db_upload.get("enabled"):
@@ -2489,6 +2528,8 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
 
     @app.post("/api/export/word")
     def word_export_download():
+        if not FEATURE_LOCKS.get("word_export", False):
+            return _disabled_feature_payload("word_export")
         payload = _as_mapping(request.get_json(silent=True))
         raw_state = payload.get("state")
         if not isinstance(raw_state, Mapping):
@@ -2846,6 +2887,7 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
             "warning_reasons": [item.get("code", "") for item in warnings],
         }
         db_upload = _disabled_db_upload()
+
         db_upload_text = ""
         assistant = (
             f"의뢰서 상태: OK\n해석 의뢰번호: {_request_no(state)}"
