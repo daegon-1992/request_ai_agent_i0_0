@@ -105,9 +105,14 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from .database import SessionLocal
 from .db_models import User
 from .submission_service import (
+    DuplicateRevisionError,
     DuplicateSubmissionError,
+    InvalidResubmissionStateError,
     SubmissionMasterDataError,
+    SubmissionNotFoundError,
+    SubmissionOwnershipError,
     save_initial_submission,
+    save_revision_submission,
 )
 
 
@@ -2985,6 +2990,190 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
             {
                 "final_review": review_payload,
                 "final_payload": review_payload.get("final_payload"),
+                "submission_result": submission_result,
+                "assistant": assistant,
+                "state_changed": True,
+                "structured_state_changed": True,
+            }
+        )
+        return jsonify(response)
+
+    @app.post("/api/requests/<string:request_no>/resubmit")
+    def resubmit(request_no: str):
+        normalized_request_no = _clean_text(request_no)
+        payload = request.get_json(silent=True)
+        payload_map = payload if isinstance(payload, Mapping) else {}
+
+        if payload_map.get("submission_consent") is not True:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_consent_required",
+                    "message": "재제출 동의가 필요합니다.",
+                    "state_changed": False,
+                }
+            ), 400
+
+        default_state = _derive_state()
+        base_state = _state_from_request(default_state)
+        submit_base_state = (
+            approve_candidate_conditions(base_state)
+            if bool(payload_map.get("approve_candidates", False))
+            else base_state
+        )
+        state = state_with_validation(submit_base_state)
+        validation = _as_mapping(
+            _as_mapping(state.get("review")).get("validator")
+        )
+        summary = _as_mapping(validation.get("summary"))
+        can_submit = bool(summary.get("can_submit", False))
+        blocking = [
+            dict(item)
+            for item in _as_list(validation.get("blocking"))
+            if isinstance(item, Mapping)
+        ]
+        warnings = [
+            dict(item)
+            for item in _as_list(validation.get("warning"))
+            if isinstance(item, Mapping)
+        ]
+
+        if not can_submit:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_validation_failed",
+                    "message": "재제출 전 blocking 항목을 수정해 주세요.",
+                    "validation": validation,
+                    "blocking": blocking,
+                    "warnings": warnings,
+                    "state_changed": False,
+                }
+            ), 422
+
+        if _clean_text(_request_no(state)) != normalized_request_no:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_request_mismatch",
+                    "message": "재제출 대상 의뢰번호가 일치하지 않습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 400
+
+        submitted_at = _utc_now()
+
+        try:
+            submitted_by_user_id = _submission_user_id()
+            state = deepcopy(dict(state))
+            metadata = dict(_as_mapping(state.get("metadata")))
+            metadata["submission_consent"] = {
+                "accepted": True,
+                "statement": SUBMISSION_CONSENT_STATEMENT,
+                "accepted_at": submitted_at,
+                "submitted_by_user_id": submitted_by_user_id,
+            }
+            state["metadata"] = metadata
+            submission_result = save_revision_submission(
+                request_no=normalized_request_no,
+                state=state,
+                submitted_by_user_id=submitted_by_user_id,
+            )
+        except SubmissionNotFoundError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_request_not_found",
+                    "message": "재제출할 해석 의뢰를 찾을 수 없습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 404
+        except SubmissionOwnershipError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_forbidden",
+                    "message": "해당 해석 의뢰를 재제출할 권한이 없습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 403
+        except DuplicateRevisionError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "duplicate_resubmission",
+                    "message": "이미 재제출된 해석 의뢰입니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 409
+        except InvalidResubmissionStateError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_not_allowed",
+                    "message": "현재 상태에서는 해석 의뢰를 재제출할 수 없습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 409
+        except IntegrityError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_conflict",
+                    "message": "동일 Revision이 이미 제출되었거나 저장 충돌이 발생했습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 409
+        except SubmissionMasterDataError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_master_data_unavailable",
+                    "message": "재제출에 필요한 DB 기준정보가 준비되지 않았습니다.",
+                    "state_changed": False,
+                }
+            ), 503
+        except (RuntimeError, SQLAlchemyError):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "resubmission_unavailable",
+                    "message": "현재 재제출을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                    "state_changed": False,
+                }
+            ), 503
+
+        state.setdefault("review", {})
+        state["review"]["submission"] = {
+            "status": "RESUBMITTED",
+            "can_submit": True,
+            "submitted": True,
+            "submitted_at": submitted_at,
+            "request_id": submission_result["request_id"],
+            "revision_id": submission_result["revision_id"],
+            "revision_no": submission_result["revision_no"],
+            "blocking_reasons": [],
+            "warning_reasons": [
+                item.get("code", "")
+                for item in warnings
+            ],
+        }
+        assistant = (
+            "보완된 해석 의뢰가 재제출되었습니다.\n"
+            f"해석 의뢰번호: {submission_result['request_no']}"
+        )
+        response = _response_payload(
+            state,
+            timestamp_key="resubmit_checked_at",
+        )
+        response.update(
+            {
                 "submission_result": submission_result,
                 "assistant": assistant,
                 "state_changed": True,

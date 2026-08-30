@@ -47,6 +47,22 @@ class DuplicateSubmissionError(SubmissionError):
     """Raised when a request number has already been submitted."""
 
 
+class SubmissionNotFoundError(SubmissionError):
+    """Raised when the request selected for resubmission does not exist."""
+
+
+class SubmissionOwnershipError(SubmissionError):
+    """Raised when a different requester attempts a resubmission."""
+
+
+class InvalidResubmissionStateError(SubmissionError):
+    """Raised when the request cannot accept a new revision."""
+
+
+class DuplicateRevisionError(SubmissionError):
+    """Raised when the next revision was already submitted."""
+
+
 class SubmissionMasterDataError(SubmissionError):
     """Raised when required active DB master data is missing."""
 
@@ -122,35 +138,13 @@ def _condition_instance_name(
 
     return _clean_text(card.get("label")) or group.name
 
-def create_initial_submission(
+
+def _load_condition_masters(
     db: Session,
-    *,
-    state: Mapping[str, Any],
-    submitted_by_user_id: int,
-) -> dict[str, Any]:
-    request_no = _request_no(state)
-
-    if not request_no:
-        raise ValueError("request_no is required")
-
-    user = db.get(User, submitted_by_user_id)
-
-    if user is None:
-        raise ValueError(
-            f"submitted user not found: {submitted_by_user_id}"
-        )
-
-    existing_request = db.scalar(
-        select(RequestModel).where(
-            RequestModel.request_no == request_no
-        )
-    )
-
-    if existing_request is not None:
-        raise DuplicateSubmissionError(
-            f"request_no already exists: {request_no}"
-        )
-
+) -> tuple[
+    dict[str, ConditionGroup],
+    dict[tuple[int, str], ConditionField],
+]:
     group_rows = db.scalars(
         select(ConditionGroup).where(
             ConditionGroup.status == "ACTIVE"
@@ -187,39 +181,20 @@ def create_initial_submission(
         for field in field_rows
     }
 
-    request_row = RequestModel(
-        request_no=request_no,
-        requester_user_id=submitted_by_user_id,
-        current_status="SUBMITTED",
-        current_revision_no=0,
-    )
+    return groups_by_code, fields_by_group_and_code
 
-    db.add(request_row)
-    db.flush()
 
-    revision_row = RequestRevision(
-        request_id=request_row.id,
-        revision_no=0,
-        submitted_by_user_id=submitted_by_user_id,
-        state_schema_version=_schema_version(state),
-        snapshot_json=deepcopy(dict(state)),
-    )
-
-    db.add(revision_row)
-    db.flush()
-
-    event_row = WorkflowEvent(
-        request_id=request_row.id,
-        revision_id=revision_row.id,
-        event_type="SUBMITTED",
-        from_status=None,
-        to_status="SUBMITTED",
-        actor_user_id=submitted_by_user_id,
-        comment="최초 의뢰 제출",
-    )
-
-    db.add(event_row)
-
+def _create_condition_rows(
+    db: Session,
+    *,
+    state: Mapping[str, Any],
+    revision_id: int,
+    groups_by_code: Mapping[str, ConditionGroup],
+    fields_by_group_and_code: Mapping[
+        tuple[int, str],
+        ConditionField,
+    ],
+) -> tuple[int, int]:
     request_context = _as_mapping(
         state.get(SECTION_REQUEST_CONTEXT)
     )
@@ -271,7 +246,7 @@ def create_initial_submission(
             )
 
         instance_row = ConditionInstance(
-            request_revision_id=revision_row.id,
+            request_revision_id=revision_id,
             condition_group_id=group.id,
             instance_key=instance_key,
             instance_name=_condition_instance_name(
@@ -355,6 +330,83 @@ def create_initial_submission(
 
     db.flush()
 
+    return instance_count, value_count
+
+
+def create_initial_submission(
+    db: Session,
+    *,
+    state: Mapping[str, Any],
+    submitted_by_user_id: int,
+) -> dict[str, Any]:
+    request_no = _request_no(state)
+
+    if not request_no:
+        raise ValueError("request_no is required")
+
+    user = db.get(User, submitted_by_user_id)
+
+    if user is None:
+        raise ValueError(
+            f"submitted user not found: {submitted_by_user_id}"
+        )
+
+    existing_request = db.scalar(
+        select(RequestModel).where(
+            RequestModel.request_no == request_no
+        )
+    )
+
+    if existing_request is not None:
+        raise DuplicateSubmissionError(
+            f"request_no already exists: {request_no}"
+        )
+
+    groups_by_code, fields_by_group_and_code = (
+        _load_condition_masters(db)
+    )
+
+    request_row = RequestModel(
+        request_no=request_no,
+        requester_user_id=submitted_by_user_id,
+        current_status="SUBMITTED",
+        current_revision_no=0,
+    )
+
+    db.add(request_row)
+    db.flush()
+
+    revision_row = RequestRevision(
+        request_id=request_row.id,
+        revision_no=0,
+        submitted_by_user_id=submitted_by_user_id,
+        state_schema_version=_schema_version(state),
+        snapshot_json=deepcopy(dict(state)),
+    )
+
+    db.add(revision_row)
+    db.flush()
+
+    event_row = WorkflowEvent(
+        request_id=request_row.id,
+        revision_id=revision_row.id,
+        event_type="SUBMITTED",
+        from_status=None,
+        to_status="SUBMITTED",
+        actor_user_id=submitted_by_user_id,
+        comment="최초 의뢰 제출",
+    )
+
+    db.add(event_row)
+
+    instance_count, value_count = _create_condition_rows(
+        db,
+        state=state,
+        revision_id=revision_row.id,
+        groups_by_code=groups_by_code,
+        fields_by_group_and_code=fields_by_group_and_code,
+    )
+
     return {
         "request_id": request_row.id,
         "request_no": request_row.request_no,
@@ -375,6 +427,155 @@ def save_initial_submission(
     with SessionLocal.begin() as db:
         return create_initial_submission(
             db,
+            state=state,
+            submitted_by_user_id=submitted_by_user_id,
+        )
+
+
+def create_revision_submission(
+    db: Session,
+    *,
+    request_no: str,
+    state: Mapping[str, Any],
+    submitted_by_user_id: int,
+) -> dict[str, Any]:
+    normalized_request_no = _clean_text(request_no)
+
+    if not normalized_request_no:
+        raise ValueError("request_no is required")
+
+    state_request_no = _request_no(state)
+
+    if state_request_no != normalized_request_no:
+        raise ValueError("state request_no does not match request_no")
+
+    user = db.get(User, submitted_by_user_id)
+
+    if user is None:
+        raise ValueError(
+            f"submitted user not found: {submitted_by_user_id}"
+        )
+
+    request_row = db.scalar(
+        select(RequestModel)
+        .where(RequestModel.request_no == normalized_request_no)
+        .with_for_update()
+    )
+
+    if request_row is None:
+        raise SubmissionNotFoundError(
+            f"request not found: {normalized_request_no}"
+        )
+
+    if request_row.requester_user_id != submitted_by_user_id:
+        raise SubmissionOwnershipError(
+            "submitted user is not the request owner"
+        )
+
+    if request_row.current_status == "RESUBMITTED":
+        raise DuplicateRevisionError(
+            f"request was already resubmitted: {normalized_request_no}"
+        )
+
+    if request_row.current_status != "REVISION_REQUESTED":
+        raise InvalidResubmissionStateError(
+            "request status must be REVISION_REQUESTED"
+        )
+
+    current_revision_no = request_row.current_revision_no
+
+    if current_revision_no < 0:
+        raise InvalidResubmissionStateError(
+            "current revision number is invalid"
+        )
+
+    current_revision_id = db.scalar(
+        select(RequestRevision.id).where(
+            RequestRevision.request_id == request_row.id,
+            RequestRevision.revision_no == current_revision_no,
+        )
+    )
+
+    if current_revision_id is None:
+        raise InvalidResubmissionStateError(
+            "current request revision does not exist"
+        )
+
+    next_revision_no = current_revision_no + 1
+    existing_revision_id = db.scalar(
+        select(RequestRevision.id).where(
+            RequestRevision.request_id == request_row.id,
+            RequestRevision.revision_no == next_revision_no,
+        )
+    )
+
+    if existing_revision_id is not None:
+        raise DuplicateRevisionError(
+            "next request revision already exists"
+        )
+
+    groups_by_code, fields_by_group_and_code = (
+        _load_condition_masters(db)
+    )
+
+    revision_row = RequestRevision(
+        request_id=request_row.id,
+        revision_no=next_revision_no,
+        submitted_by_user_id=submitted_by_user_id,
+        state_schema_version=_schema_version(state),
+        snapshot_json=deepcopy(dict(state)),
+    )
+
+    db.add(revision_row)
+    db.flush()
+
+    instance_count, value_count = _create_condition_rows(
+        db,
+        state=state,
+        revision_id=revision_row.id,
+        groups_by_code=groups_by_code,
+        fields_by_group_and_code=fields_by_group_and_code,
+    )
+
+    previous_status = request_row.current_status
+    request_row.current_revision_no = next_revision_no
+    request_row.current_status = "RESUBMITTED"
+
+    event_row = WorkflowEvent(
+        request_id=request_row.id,
+        revision_id=revision_row.id,
+        event_type="RESUBMITTED",
+        from_status=previous_status,
+        to_status="RESUBMITTED",
+        actor_user_id=submitted_by_user_id,
+        comment="보완 의뢰 재제출",
+    )
+
+    db.add(event_row)
+    db.flush()
+
+    return {
+        "request_id": request_row.id,
+        "request_no": request_row.request_no,
+        "revision_id": revision_row.id,
+        "revision_no": revision_row.revision_no,
+        "workflow_event_id": event_row.id,
+        "condition_instance_count": instance_count,
+        "condition_value_count": value_count,
+        "status": request_row.current_status,
+    }
+
+
+def save_revision_submission(
+    *,
+    request_no: str,
+    state: Mapping[str, Any],
+    submitted_by_user_id: int,
+) -> dict[str, Any]:
+    with SessionLocal.begin() as db:
+        return create_revision_submission(
+            db,
+            request_no=request_no,
             state=state,
             submitted_by_user_id=submitted_by_user_id,
         )
