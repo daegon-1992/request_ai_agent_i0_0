@@ -18,7 +18,7 @@ def test_preview_marks_missing_field_labels_with_a_red_warning_icon():
     assert 'previewFieldLabel("팬 회전수(RPM)", fanDisplay.missing)' in preview
 
 
-def test_word_button_shows_required_input_warning_only_for_missing_required_input():
+def test_submit_button_shows_required_input_warning_only_for_missing_required_input():
     navigation = HTML_TEMPLATE.split("function renderScreenNavigation", 1)[1].split(
         "function focusScreenHeading", 1
     )[0]
@@ -26,7 +26,10 @@ def test_word_button_shows_required_input_warning_only_for_missing_required_inpu
     assert 'id="wordExportRequiredWarning"' in HTML_TEMPLATE
     assert "필수 입력 누락" in HTML_TEMPLATE
     assert "wordRequiredWarning.hidden = firstIncompleteIndex < 0" in navigation
-    assert "wordButton.disabled = wordExportInProgress || firstIncompleteIndex >= 0" in navigation
+    assert (
+        "submitButton.disabled = submissionCompleted || submissionInProgress || "
+        "firstIncompleteIndex >= 0"
+    ) in navigation
 
 
 def test_screen_six_uses_canonical_preview_card_read_only_and_action_contracts():

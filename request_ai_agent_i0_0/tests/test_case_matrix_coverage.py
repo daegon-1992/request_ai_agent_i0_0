@@ -177,8 +177,11 @@ def test_case_and_preview_status_ui_unifies_case_errors_and_keeps_coverage_separ
     assert "focusCaseValidationIssue(blockingIssues[0]);" in confirmation
     assert 'navigateScreen("SCREEN-06")' in confirmation
     assert "coverage" not in confirmation
-    assert "wordButton.disabled = wordExportInProgress || firstIncompleteIndex >= 0 || caseMatrixExportBlocked" in HTML_TEMPLATE
-    assert "const caseMatrixExportBlocked = caseMatrixBlocksWordExport();" in HTML_TEMPLATE
+    assert (
+        "submitButton.disabled = submissionCompleted || submissionInProgress || "
+        "firstIncompleteIndex >= 0 || caseMatrixSubmissionBlocked"
+    ) in HTML_TEMPLATE
+    assert "const caseMatrixSubmissionBlocked = caseMatrixBlocksWordExport();" in HTML_TEMPLATE
     assert 'screen.id !== "SCREEN-06"' in HTML_TEMPLATE
 
 
