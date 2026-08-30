@@ -8,7 +8,6 @@ from typing import Any, Mapping
 
 from .conversation_store import ConversationSnapshot
 from .condition_fieldsets import sanitize_condition_sets
-from .constants import SUBMISSION_CONTACT
 from .form_context import build_form_context
 from .request_state_store import RequestStateSnapshot
 from .validator import validate_state
@@ -101,8 +100,8 @@ def _build_submission_process(validation: Mapping[str, Any]) -> dict[str, Any]:
     steps = [
         {"key": "case_matrix_review", "action": "Case Matrix 확인"},
         {"key": "full_preview_review", "action": "전체 확인 화면에서 의뢰서 미리보기 검토"},
-        {"key": "word_generation", "action": "의뢰서 생성(Word)"},
-        {"key": "email_submission", "action": "생성한 Word 파일 이메일 제출"},
+        {"key": "submission_consent", "action": "최종 제출 내용 동의"},
+        {"key": "direct_submission", "action": "화면에서 해석 의뢰 최종 제출"},
     ]
     return {
         "required_input_complete": required_input_complete,
@@ -110,9 +109,8 @@ def _build_submission_process(validation: Mapping[str, Any]) -> dict[str, Any]:
         "next_action": deepcopy(steps[0]) if required_input_complete else None,
         "remaining_steps": steps,
         "submission": {
-            "method": "email",
-            "direct_screen_submission_available": False,
-            "recipient": deepcopy(SUBMISSION_CONTACT),
+            "method": "direct_screen",
+            "direct_screen_submission_available": True,
         },
     }
 

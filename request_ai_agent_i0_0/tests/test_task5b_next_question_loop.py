@@ -421,7 +421,7 @@ def test_complete_clears_focus_without_submit_close_or_terminal_workflow(monkeyp
     assert app.extensions["request_state_store"].read(request_id) == before
 
 
-def test_complete_request_exposes_canonical_next_steps_and_email_submission_to_agent(monkeypatch):
+def test_complete_request_exposes_canonical_next_steps_and_direct_submission_to_agent(monkeypatch):
     seen_processes = []
 
     def decider(context, _contract):
@@ -430,13 +430,12 @@ def test_complete_request_exposes_canonical_next_steps_and_email_submission_to_a
         if len(seen_processes) == 1:
             return _decision(
                 "answer",
-                "필수 입력 다음에는 Case Matrix를 확인하고, 전체 확인 화면의 미리보기를 검토한 뒤 Word 의뢰서를 생성해 주세요.",
+                "필수 입력 다음에는 Case Matrix를 확인하고, 전체 확인 화면의 미리보기를 검토한 뒤 제출 동의해 주세요.",
                 resume_workflow=False,
             )
-        recipient = process["submission"]["recipient"]
         return _decision(
             "answer",
-            f"생성한 Word 파일을 {recipient['name']}({recipient['email']})에게 이메일로 보내 주세요.",
+            "전체 확인 화면에서 동의한 뒤 최종 제출 버튼을 눌러 주세요.",
             resume_workflow=False,
         )
 
@@ -457,12 +456,11 @@ def test_complete_request_exposes_canonical_next_steps_and_email_submission_to_a
 
     assert all(process["required_input_complete"] is True for process in seen_processes)
     assert all(process["next_action"]["key"] == "case_matrix_review" for process in seen_processes)
-    assert all(process["submission"]["direct_screen_submission_available"] is False for process in seen_processes)
+    assert all(process["submission"]["direct_screen_submission_available"] is True for process in seen_processes)
     assert "Case Matrix" in next_step["assistant"]
     assert "미리보기" in next_step["assistant"]
-    assert "Word" in next_step["assistant"]
-    assert "sedo.hong@lge.com" in submission["assistant"]
-    assert "이메일" in submission["assistant"]
+    assert "동의" in next_step["assistant"]
+    assert "최종 제출" in submission["assistant"]
     assert "next_question" not in next_step and "next_question" not in submission
 
 

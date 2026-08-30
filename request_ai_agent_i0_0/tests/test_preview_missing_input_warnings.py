@@ -64,7 +64,7 @@ def test_screen_six_uses_canonical_preview_card_read_only_and_action_contracts()
         'font-size:14px;font-weight:400;line-height:1.45}'
     ) in HTML_TEMPLATE
     assert (
-        '.workspace-shell .workspace-form[data-screen="SCREEN-06"] #wordExportSlotBtn{'
+        '.workspace-shell .workspace-form[data-screen="SCREEN-06"] #finalSubmitBtn{'
         'min-height:44px;padding:0 18px;border-radius:8px;font-size:15px;font-weight:600}'
     ) in HTML_TEMPLATE
 

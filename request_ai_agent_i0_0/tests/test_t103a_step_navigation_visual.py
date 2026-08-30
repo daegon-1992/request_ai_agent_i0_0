@@ -15,7 +15,7 @@ def test_step_navigation_stays_in_the_main_workspace_and_keeps_all_six_labels():
         "해석 제품",
         "해석 조건",
         "Case Matrix",
-        "전체 확인·Preview·Word",
+        "전체 확인·최종 제출",
     ):
         assert label in HTML_TEMPLATE
 

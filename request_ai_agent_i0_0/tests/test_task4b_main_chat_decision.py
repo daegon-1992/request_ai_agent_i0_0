@@ -161,10 +161,10 @@ def test_decision_callable_makes_one_llm_call_without_duplicating_current_messag
     assert "SCREEN-xx, State key/path, Field ID" in instruction
     assert "active_field_id, workflow_status, geometry_id, card_id, fan_id" in instruction
     assert "실제 UI의 단계 번호와 화면명, 실제 UI의 Section/Field 명칭" in instruction
-    assert "01 의뢰 대상·시작, 02 요청 내용, 03 해석 제품, 04 해석 조건, 05 Case Matrix, 06 전체 확인·Preview·Word" in instruction
+    assert "01 의뢰 대상·시작, 02 요청 내용, 03 해석 제품, 04 해석 조건, 05 Case Matrix, 06 전체 확인·최종 제출" in instruction
     assert "내부 식별자를 단순히 제거하거나 치환한 어색한 문장" in instruction
-    assert "전체 확인 화면에서 의뢰서 미리보기를 검토하고 의뢰서 생성(Word)" in instruction
-    assert "생성된 Word 파일, 이메일 제출 방식과 recipient" in instruction
+    assert "전체 확인 화면에서 의뢰서 미리보기를 검토하고 제출 동의 후 화면에서 최종 제출" in instruction
+    assert "submission_process의 화면 제출 방식과 동의 절차" in instruction
     assert "질문과 관계없는 미정 항목이나 누락 항목을 매번 반복하지 않는다" in instruction
     assert "sedo.hong@lge.com" not in instruction
     assert "resume_workflow=false" in instruction

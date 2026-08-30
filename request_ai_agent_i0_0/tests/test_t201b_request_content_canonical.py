@@ -90,7 +90,7 @@ def test_geometry_completion_message_and_public_schema_use_current_label(monkeyp
 
     assert _missing_items_answer({}) == (
         "현재 요청 내용, 해석 제품, 해석 조건, Case Matrix의 필요한 항목이 모두 채워졌습니다. "
-        "전체 확인·Preview·Word에서 최종 내용을 확인해 주세요."
+        "전체 확인·최종 제출에서 최종 내용을 확인해 주세요."
     )
     geometry = next(section for section in get_public_schema()["sections"] if section["key"] == "geometry")
     assert geometry["label"] == "해석 제품"

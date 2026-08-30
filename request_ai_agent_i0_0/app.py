@@ -101,10 +101,14 @@ from .word_export import DOCX_MIMETYPE, build_word_docx, word_filename
 from .workflow_machine import ConversationWorkflowMachine, WorkflowEvent, WorkflowEventType
 
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from .database import SessionLocal
 from .db_models import User
-from .submission_service import save_initial_submission
+from .submission_service import (
+    DuplicateSubmissionError,
+    SubmissionMasterDataError,
+    save_initial_submission,
+)
 
 
 STAGE_NAME = "stage09_condition_state_progress_20260630"
@@ -852,7 +856,7 @@ def _missing_items_answer(state: Mapping[str, Any]) -> str:
     derived = _derive_state(state)
     progress = _stage_progress(derived)
     if progress.get("all_complete"):
-        return "현재 요청 내용, 해석 제품, 해석 조건, Case Matrix의 필요한 항목이 모두 채워졌습니다. 전체 확인·Preview·Word에서 최종 내용을 확인해 주세요."
+        return "현재 요청 내용, 해석 제품, 해석 조건, Case Matrix의 필요한 항목이 모두 채워졌습니다. 전체 확인·최종 제출에서 최종 내용을 확인해 주세요."
     analysis_type = _clean_text(_as_mapping(derived.get(SECTION_REQUEST_CONTEXT)).get("analysis_type"))
     lines = ["현재 의뢰서를 완성하려면 아래 항목을 보완해야 합니다."]
     if analysis_type:
@@ -2835,6 +2839,17 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
         default_state = _derive_state()
         payload = request.get_json(silent=True)
         payload_map = payload if isinstance(payload, Mapping) else {}
+
+        if payload_map.get("submission_consent") is not True:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_consent_required",
+                    "message": "최종 제출 동의가 필요합니다.",
+                    "state_changed": False,
+                }
+            ), 400
+
         base_state = _state_from_request(default_state)
         submit_base_state = (
             approve_candidate_conditions(base_state)
@@ -2857,9 +2872,23 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
             can_submit = bool(summary.get("can_submit", False))
         blocking = [dict(item) for item in _as_list(validation.get("blocking")) if isinstance(item, Mapping)]
         warnings = [dict(item) for item in _as_list(validation.get("warning")) if isinstance(item, Mapping)]
+
+        if not can_submit:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_validation_failed",
+                    "message": "제출 전 blocking 항목을 수정해 주세요.",
+                    "validation": validation,
+                    "blocking": blocking,
+                    "warnings": warnings,
+                    "state_changed": False,
+                }
+            ), 422
+
         review_payload = {
-            "status": "OK" if can_submit else "NG",
-            "can_submit": can_submit,
+            "status": "OK",
+            "can_submit": True,
             "decision_basis": "structured_state_and_active_fieldset",
             "blocking_reasons": blocking,
             "warnings": warnings,
@@ -2880,31 +2909,86 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
         }
         state.setdefault("review", {})
         state["review"]["final_review"] = review_payload
+        submitted_at = _utc_now()
+
+        try:
+            submitted_by_user_id = _submission_user_id()
+            state = deepcopy(dict(state))
+            metadata = dict(_as_mapping(state.get("metadata")))
+            metadata["submission_consent"] = {
+                "accepted": True,
+                "statement": SUBMISSION_CONSENT_STATEMENT,
+                "accepted_at": submitted_at,
+                "submitted_by_user_id": submitted_by_user_id,
+            }
+            state["metadata"] = metadata
+            submission_result = save_initial_submission(
+                state=state,
+                submitted_by_user_id=submitted_by_user_id,
+            )
+        except DuplicateSubmissionError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "duplicate_submission",
+                    "message": "이미 제출된 해석 의뢰번호입니다.",
+                    "request_no": _request_no(state),
+                    "state_changed": False,
+                }
+            ), 409
+        except IntegrityError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_conflict",
+                    "message": "동일한 의뢰가 이미 제출되었거나 저장 충돌이 발생했습니다.",
+                    "request_no": _request_no(state),
+                    "state_changed": False,
+                }
+            ), 409
+        except SubmissionMasterDataError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_master_data_unavailable",
+                    "message": "제출에 필요한 DB 기준정보가 준비되지 않았습니다.",
+                    "state_changed": False,
+                }
+            ), 503
+        except (RuntimeError, SQLAlchemyError):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "submission_unavailable",
+                    "message": "현재 제출을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                    "state_changed": False,
+                }
+            ), 503
+
+        state.setdefault("review", {})
         state["review"]["submission"] = {
-            "status": "OK" if can_submit else "NG",
-            "can_submit": can_submit,
-            "blocking_reasons": [item.get("code", "") for item in blocking],
+            "status": "SUBMITTED",
+            "can_submit": True,
+            "submitted": True,
+            "submitted_at": submitted_at,
+            "request_id": submission_result["request_id"],
+            "revision_id": submission_result["revision_id"],
+            "blocking_reasons": [],
             "warning_reasons": [item.get("code", "") for item in warnings],
         }
-        db_upload = _disabled_db_upload()
-
-        db_upload_text = ""
         assistant = (
-            f"의뢰서 상태: OK\n해석 의뢰번호: {_request_no(state)}"
-            if can_submit
-            else "의뢰서 상태: NG\n누락/보완 항목을 확인해 주세요."
+            "해석 의뢰가 제출되었습니다.\n"
+            f"해석 의뢰번호: {submission_result['request_no']}"
         )
-        if db_upload_text:
-            assistant = f"{assistant}\n{db_upload_text}"
         response = _response_payload(state, timestamp_key="submit_checked_at")
         response.update(
             {
                 "final_review": review_payload,
                 "final_payload": review_payload.get("final_payload"),
-                "db_upload": db_upload,
+                "submission_result": submission_result,
                 "assistant": assistant,
-                "state_changed": False,
-                "structured_state_changed": False,
+                "state_changed": True,
+                "structured_state_changed": True,
             }
         )
         return jsonify(response)
