@@ -138,7 +138,7 @@ def test_case_and_preview_status_ui_unifies_case_errors_and_keeps_coverage_separ
     case_status = HTML_TEMPLATE.index('id="caseCoverageStatus"', duplicate_warning)
     preview = HTML_TEMPLATE.index('<div id="documentPreviewPanel"></div>')
     preview_warning = HTML_TEMPLATE.index('id="previewCoverageWarning"', preview)
-    word_button = HTML_TEMPLATE.index('id="wordExportSlotBtn"', preview_warning)
+    submit_button = HTML_TEMPLATE.index('id="finalSubmitBtn"', preview_warning)
     confirm_start = HTML_TEMPLATE.index("async function confirmCaseConfiguration()")
     confirm_end = HTML_TEMPLATE.index("function renderDerivedPanels()", confirm_start)
     confirmation = HTML_TEMPLATE[confirm_start:confirm_end]
@@ -156,7 +156,7 @@ def test_case_and_preview_status_ui_unifies_case_errors_and_keeps_coverage_separ
     assert "min-height" not in case_review_css
     assert '.case-duplicate-warning:empty,.case-coverage-status:empty,#previewCoverageWarning:empty{display:none}' in HTML_TEMPLATE
     assert f'{feedback_scope}.case-review-message:empty{{display:none}}' in HTML_TEMPLATE
-    assert preview < preview_warning < word_button
+    assert preview < preview_warning < submit_button
     assert f'{feedback_scope}.case-review-message.error{{border:1px solid #E8B4B0;background:#FFF2F1}}' in HTML_TEMPLATE
     assert f'{feedback_scope}.case-review-message.warning{{border:1px solid #E4D3AD;background:#FFF9ED}}' in HTML_TEMPLATE
     assert '.case-review-message.error{border:1px solid #E8B4B0;background:#FFF2F1}' in HTML_TEMPLATE
@@ -177,8 +177,11 @@ def test_case_and_preview_status_ui_unifies_case_errors_and_keeps_coverage_separ
     assert "focusCaseValidationIssue(blockingIssues[0]);" in confirmation
     assert 'navigateScreen("SCREEN-06")' in confirmation
     assert "coverage" not in confirmation
-    assert "wordButton.disabled = wordExportInProgress || firstIncompleteIndex >= 0 || caseMatrixExportBlocked" in HTML_TEMPLATE
-    assert "const caseMatrixExportBlocked = caseMatrixBlocksWordExport();" in HTML_TEMPLATE
+    assert (
+        "submitButton.disabled = submissionCompleted || submissionInProgress || "
+        "firstIncompleteIndex >= 0 || caseMatrixSubmissionBlocked"
+    ) in HTML_TEMPLATE
+    assert "const caseMatrixSubmissionBlocked = caseMatrixBlocksWordExport();" in HTML_TEMPLATE
     assert 'screen.id !== "SCREEN-06"' in HTML_TEMPLATE
 
 
@@ -566,6 +569,7 @@ def test_word_button_shows_progress_blocks_duplicates_and_restores_navigation_po
 
 def test_word_api_blocks_unused_coverage_before_docx_generation(monkeypatch):
     called = False
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
 
     def forbidden_docx(_preview):
         nonlocal called
@@ -586,6 +590,7 @@ def test_word_api_blocks_unused_coverage_before_docx_generation(monkeypatch):
 
 def test_word_api_blocks_duplicate_case_before_docx_generation(monkeypatch):
     called = False
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
 
     def forbidden_docx(_preview):
         nonlocal called
@@ -607,6 +612,7 @@ def test_word_api_blocks_duplicate_case_before_docx_generation(monkeypatch):
 
 def test_word_api_blocks_missing_case_selections_before_docx_generation(monkeypatch):
     called = False
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
 
     def forbidden_docx(_preview):
         nonlocal called
@@ -653,6 +659,7 @@ def test_word_api_blocks_missing_case_selections_before_docx_generation(monkeypa
 
 def test_word_api_keeps_existing_docx_generation_when_coverage_is_complete(monkeypatch):
     calls = []
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
     monkeypatch.setattr(app_module, "build_word_docx", lambda preview: calls.append(preview) or b"PK-docx")
 
     response = create_app().test_client().post(

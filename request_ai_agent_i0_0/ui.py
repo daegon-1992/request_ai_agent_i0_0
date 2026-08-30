@@ -644,6 +644,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     .submit-dialog strong{display:block;font-size:20px;color:var(--ink);margin-bottom:14px}
     .submit-modal[hidden]{display:none}
+    .final-submit-copy{margin:0;color:var(--muted);line-height:1.6;text-align:left}
+    .final-submit-consent{
+      display:flex;align-items:flex-start;gap:10px;margin-top:18px;padding:12px;
+      border:1px solid var(--line);border-radius:8px;background:var(--soft);
+      color:var(--ink);line-height:1.5;text-align:left;cursor:pointer;
+    }
+    .final-submit-consent input{width:18px;height:18px;margin:2px 0 0;flex:0 0 auto}
+    .final-submit-error{min-height:20px;margin-top:10px;color:var(--danger);font-size:12px;text-align:left}
+    .final-submit-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
     .context-change-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
     @media (max-width:1280px) and (min-width:1040px){
       .layout{grid-template-columns:minmax(0,1fr) 320px}
@@ -877,7 +886,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .workspace-shell .workspace-form[data-screen="SCREEN-06"] .preview-kv > span:last-child{color:var(--ink);font-size:14px;font-weight:400;line-height:1.45}
     .workspace-shell .workspace-form[data-screen="SCREEN-06"] .preview-table th{font-size:13px;font-weight:500;line-height:1.45}
     .workspace-shell .workspace-form[data-screen="SCREEN-06"] .preview-table td{font-size:14px;font-weight:400;line-height:1.45}
-    .workspace-shell .workspace-form[data-screen="SCREEN-06"] #wordExportSlotBtn{min-height:44px;padding:0 18px;border-radius:8px;font-size:15px;font-weight:600}
+    .workspace-shell .workspace-form[data-screen="SCREEN-06"] #finalSubmitBtn{min-height:44px;padding:0 18px;border-radius:8px;font-size:15px;font-weight:600}
     .workspace-shell .workspace-form[data-screen="SCREEN-06"] :is(.preview-missing-icon,.preview-missing-icon svg){width:14px;height:14px}
     .workspace-shell .workspace-form[data-screen="SCREEN-06"] .preview-missing-icon{flex:0 0 14px;color:#C62828}
     .workspace-shell :is(.geometry-screen,.stage-static-screen[data-screen="SCREEN-05"],.workspace-form[data-screen="SCREEN-06"]) .case-review-message{display:grid;gap:12px;position:relative;margin-top:12px;padding:16px;border-radius:10px;box-shadow:none;color:var(--ink)}
@@ -1111,7 +1120,7 @@ HTML_TEMPLATE = r"""<!doctype html>
           <span class="screen-map-item" data-screen="SCREEN-03"><span class="screen-map-number">03</span><span class="screen-map-label"><span class="screen-map-lock" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2"></path></svg></span><span>해석 제품</span></span></span>
           <span class="screen-map-item" data-screen="SCREEN-04"><span class="screen-map-number">04</span><span class="screen-map-label"><span class="screen-map-lock" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2"></path></svg></span><span>해석 조건</span></span></span>
           <span class="screen-map-item" data-screen="SCREEN-05"><span class="screen-map-number">05</span><span class="screen-map-label"><span class="screen-map-lock" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2"></path></svg></span><span>Case Matrix</span></span></span>
-          <span class="screen-map-item" data-screen="SCREEN-06"><span class="screen-map-number">06</span><span class="screen-map-label"><span>전체 확인·Preview·Word</span></span></span>
+          <span class="screen-map-item" data-screen="SCREEN-06"><span class="screen-map-number">06</span><span class="screen-map-label"><span>전체 확인·최종 제출</span></span></span>
         </div>
       </nav>
 
@@ -1340,7 +1349,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <div class="workspace-tab" id="tab-preview" hidden aria-hidden="true">
           <div class="workspace-form screen-group" data-screen="SCREEN-06" aria-labelledby="screen06Heading">
             <h2 class="screen-heading" id="screen06Heading"><span>전체 확인</span></h2>
-            <p class="screen-description">입력한 의뢰 내용을 확인한 뒤 Word 의뢰서를 생성합니다.</p>
+            <p class="screen-description">입력한 의뢰 내용을 확인한 뒤 해석 의뢰를 최종 제출합니다.</p>
             <section class="section open" id="section-preview" data-section="preview">
               <div class="section-head">
                 <div class="section-title"><h3>의뢰서 미리보기</h3></div>
@@ -1350,7 +1359,7 @@ HTML_TEMPLATE = r"""<!doctype html>
                 <div id="documentPreviewPanel"></div>
                 <div id="previewCoverageWarning"></div>
                 <div class="preview-actions">
-                  <button class="primary" id="wordExportSlotBtn" type="button">의뢰서 생성(Word)</button>
+                  <button class="primary" id="finalSubmitBtn" type="button">제출</button>
                   <span class="word-export-required-warning" id="wordExportRequiredWarning" role="status" hidden><span class="preview-missing-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"></path><path d="M12 9v5"></path><circle cx="12" cy="17" r=".7"></circle></svg></span><span>필수 입력 누락</span></span>
                 </div>
               </div>
@@ -1410,6 +1419,22 @@ HTML_TEMPLATE = r"""<!doctype html>
       <p class="subtitle">한 운전 조건에는 Fan을 최대 10개까지 설정할 수 있습니다.<br>10개를 초과하는 조건이 필요한 경우 관리자에게 문의해 주세요.<br><br>홍승도 책임연구원<br><a href="mailto:sedo.hong@lge.com">sedo.hong@lge.com</a></p>
       <div class="context-change-actions">
         <button class="primary" id="fanLimitConfirm" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="submit-modal" id="finalSubmitModal" hidden role="dialog" aria-modal="true" aria-labelledby="finalSubmitTitle" aria-describedby="finalSubmitDescription">
+    <div class="submit-dialog">
+      <strong id="finalSubmitTitle">해석 의뢰를 최종 제출하시겠습니까?</strong>
+      <p class="final-submit-copy" id="finalSubmitDescription">제출된 내용을 기준으로 해석팀이 의뢰 내용을 검토합니다.<br><br>검토 결과 문제가 없으면 해석을 진행하며, 입력 내용이 부족하거나 확인이 필요한 경우 보완을 요청할 수 있습니다.</p>
+      <label class="final-submit-consent" for="finalSubmitConsent">
+        <input id="finalSubmitConsent" type="checkbox">
+        <span>현재 입력한 의뢰 내용으로 해석을 진행하는 것에 동의합니다.</span>
+      </label>
+      <div class="final-submit-error" id="finalSubmitError" role="alert" aria-live="assertive"></div>
+      <div class="final-submit-actions">
+        <button class="ghost" id="finalSubmitCancel" type="button">취소</button>
+        <button class="primary" id="finalSubmitConfirm" type="button" disabled>최종 제출</button>
       </div>
     </div>
   </div>
@@ -1475,6 +1500,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     let activeTopTab = "write";
     let activeScreen = "SCREEN-01";
     let wordExportInProgress = false;
+    let submissionInProgress = false;
+    let submissionCompleted = false;
+    let finalSubmitPreviousFocus = null;
     let lastPlannerActiveFieldId = "";
     let agentOpen = true;
     let lastAgentFocus = null;
@@ -2334,15 +2362,17 @@ HTML_TEMPLATE = r"""<!doctype html>
       document.querySelectorAll(".screen-group[data-screen]").forEach(group => {
         group.hidden = group.dataset.screen !== active.id;
       });
-      const wordButton = $("wordExportSlotBtn");
+      const submitButton = $("finalSubmitBtn");
       const wordRequiredWarning = $("wordExportRequiredWarning");
-      const caseMatrixExportBlocked = caseMatrixBlocksWordExport();
-      if (wordButton) {
-        wordButton.disabled = wordExportInProgress || firstIncompleteIndex >= 0 || caseMatrixExportBlocked;
-        if (wordExportInProgress) wordButton.title = "의뢰서 생성 여부를 확인하고 있습니다.";
-        else if (firstIncompleteIndex >= 0) wordButton.title = "필수 입력을 완료하면 의뢰서를 생성할 수 있습니다.";
-        else if (caseMatrixExportBlocked) wordButton.title = "Case Matrix의 오류 또는 확인 필요 항목을 해소하면 의뢰서를 생성할 수 있습니다.";
-        else wordButton.removeAttribute("title");
+      const caseMatrixSubmissionBlocked = caseMatrixBlocksWordExport();
+      if (submitButton) {
+        submitButton.textContent = submissionCompleted ? "제출 완료" : "제출";
+        submitButton.disabled = submissionCompleted || submissionInProgress || firstIncompleteIndex >= 0 || caseMatrixSubmissionBlocked;
+        if (submissionCompleted) submitButton.title = "해석 의뢰가 제출되었습니다.";
+        else if (submissionInProgress) submitButton.title = "해석 의뢰를 제출하고 있습니다.";
+        else if (firstIncompleteIndex >= 0) submitButton.title = "필수 입력을 완료하면 제출할 수 있습니다.";
+        else if (caseMatrixSubmissionBlocked) submitButton.title = "Case Matrix의 오류 또는 확인 필요 항목을 해소하면 제출할 수 있습니다.";
+        else submitButton.removeAttribute("title");
       }
       if (wordRequiredWarning) wordRequiredWarning.hidden = firstIncompleteIndex < 0;
       setScreenNavigationStatus(firstIncomplete
@@ -3197,6 +3227,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       activePrepMode = "quick";
       prepAssistStarted = false;
       recommendMode = false;
+      submissionInProgress = false;
+      submissionCompleted = false;
+      hideFinalSubmitModal({force:true, restoreFocus:false});
       lastPlannerActiveFieldId = "";
       lastCaseDeleteNoticeVisible = false;
       adoptStateFromResponse(data);
@@ -4577,6 +4610,96 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
     }
 
+    function showFinalSubmitModal(){
+      const action = $("finalSubmitBtn");
+      if (!action || action.disabled || submissionInProgress || submissionCompleted) return false;
+      const reviewScreen = screenOrder.find(screen => screen.id === "SCREEN-06");
+      const firstIncomplete = firstIncompleteScreenBefore(reviewScreen);
+      if (firstIncomplete) {
+        focusRequiredControl(firstIncomplete.screen, firstIncomplete.control);
+        setScreenNavigationStatus(`${firstIncomplete.screen.id}의 필수 입력을 완료한 뒤 제출할 수 있습니다.`);
+        return false;
+      }
+      if (caseMatrixBlocksWordExport()) {
+        renderPreviewCaseMatrixStatus(requestState);
+        setScreenNavigationStatus("Case Matrix의 오류 또는 확인 필요 항목을 해소한 뒤 제출할 수 있습니다.");
+        return false;
+      }
+      requestState = collectState();
+      renderDocumentPreviewPanel();
+      finalSubmitPreviousFocus = document.activeElement;
+      $("finalSubmitConsent").checked = false;
+      $("finalSubmitConfirm").disabled = true;
+      $("finalSubmitCancel").disabled = false;
+      $("finalSubmitError").textContent = "";
+      $("finalSubmitModal").hidden = false;
+      $("finalSubmitModal").removeAttribute("aria-busy");
+      $("finalSubmitConsent").focus();
+      return true;
+    }
+
+    function hideFinalSubmitModal({force=false, restoreFocus=true}={}){
+      if (submissionInProgress && !force) return false;
+      const modal = $("finalSubmitModal");
+      if (!modal || modal.hidden) return true;
+      modal.hidden = true;
+      modal.removeAttribute("aria-busy");
+      if (restoreFocus && finalSubmitPreviousFocus instanceof HTMLElement) finalSubmitPreviousFocus.focus();
+      finalSubmitPreviousFocus = null;
+      return true;
+    }
+
+    function updateFinalSubmitConsent(){
+      const consent = $("finalSubmitConsent");
+      const confirm = $("finalSubmitConfirm");
+      if (confirm) confirm.disabled = submissionInProgress || consent?.checked !== true;
+    }
+
+    async function submitFinalRequest(){
+      const consent = $("finalSubmitConsent");
+      const confirm = $("finalSubmitConfirm");
+      const cancel = $("finalSubmitCancel");
+      const error = $("finalSubmitError");
+      const modal = $("finalSubmitModal");
+      if (submissionInProgress || submissionCompleted || consent?.checked !== true) return false;
+
+      submissionInProgress = true;
+      if (confirm) {
+        confirm.disabled = true;
+        confirm.textContent = "제출 중...";
+      }
+      if (cancel) cancel.disabled = true;
+      if (consent) consent.disabled = true;
+      if (error) error.textContent = "";
+      if (modal) modal.setAttribute("aria-busy", "true");
+      renderScreenNavigation();
+
+      try {
+        const data = await postJson("/api/submit", {
+          state: collectState(),
+          submission_consent: true,
+        });
+        requestState = asObj(data).state || requestState;
+        submissionCompleted = true;
+        hideFinalSubmitModal({force:true, restoreFocus:false});
+        renderDerivedPanels();
+        renderScreenNavigation();
+        pushMessage("assistant", data.assistant || "해석 의뢰가 제출되었습니다.");
+        return true;
+      } catch (err) {
+        if (error) error.textContent = err.message || "제출 중 오류가 발생했습니다. 다시 시도해 주세요.";
+        return false;
+      } finally {
+        submissionInProgress = false;
+        if (confirm) confirm.textContent = "최종 제출";
+        if (cancel) cancel.disabled = false;
+        if (consent) consent.disabled = false;
+        if (modal && !modal.hidden) modal.removeAttribute("aria-busy");
+        updateFinalSubmitConsent();
+        renderScreenNavigation();
+      }
+    }
+
     function triggerDownload(download){
       const info = asObj(download);
       if (!info.auto_download || !info.download_url) return;
@@ -4832,8 +4955,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       $("agentClearBtn").addEventListener("click", clearAgentConversation);
       $("agentHideBtn").addEventListener("click", () => setAgentOpen(false));
       $("agentOpenBtn").addEventListener("click", () => setAgentOpen(true));
-      $("wordExportSlotBtn").addEventListener("click", () => {
-        runWordExportFromPreview().catch(err => console.error(err));
+      $("finalSubmitBtn").addEventListener("click", showFinalSubmitModal);
+      $("finalSubmitConsent").addEventListener("change", updateFinalSubmitConsent);
+      $("finalSubmitCancel").addEventListener("click", () => hideFinalSubmitModal());
+      $("finalSubmitConfirm").addEventListener("click", () => {
+        submitFinalRequest().catch(err => console.error(err));
       });
       $("recommendBtn").addEventListener("click", () => {
         recommendMode = true;
@@ -4855,6 +4981,32 @@ HTML_TEMPLATE = r"""<!doctype html>
         if (agentOpen && $("agentDock")?.contains(event.target)) lastAgentFocus = event.target;
       });
       document.body.addEventListener("keydown", event => {
+        if (!$("finalSubmitModal")?.hidden) {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            hideFinalSubmitModal();
+            return;
+          }
+          if (event.key === "Tab") {
+            const focusable = Array.from(
+              $("finalSubmitModal").querySelectorAll("input:not([disabled]), button:not([disabled])")
+            );
+            if (!focusable.length) {
+              event.preventDefault();
+              return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+          return;
+        }
         if (!$("fanLimitModal")?.hidden) {
           if (event.key === "Tab") {
             event.preventDefault();

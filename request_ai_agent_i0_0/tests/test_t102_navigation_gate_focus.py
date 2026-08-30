@@ -67,12 +67,12 @@ def test_screen_navigation_marks_current_screen_and_supports_keyboard_activation
     assert 'event.key !== "Enter" && event.key !== " "' in HTML_TEMPLATE
 
 
-def test_word_generation_is_disabled_and_guarded_while_required_inputs_are_incomplete():
-    assert 'wordButton.disabled = wordExportInProgress || firstIncompleteIndex >= 0' in HTML_TEMPLATE
-    assert '필수 입력을 완료하면 의뢰서를 생성할 수 있습니다.' in HTML_TEMPLATE
-    export_start = HTML_TEMPLATE.index('async function exportWordFromPreview({useExistingPreviewDom=false}={})')
-    export_end = HTML_TEMPLATE.index('function mutateRows(listName, action, index)', export_start)
-    export_action = HTML_TEMPLATE[export_start:export_end]
-    assert 'const firstIncomplete = firstIncompleteScreenBefore(reviewScreen)' in export_action
-    assert 'focusRequiredControl(firstIncomplete.screen, firstIncomplete.control)' in export_action
-    assert 'return false;' in export_action
+def test_submission_is_disabled_and_guarded_while_required_inputs_are_incomplete():
+    assert 'submitButton.disabled = submissionCompleted || submissionInProgress || firstIncompleteIndex >= 0' in HTML_TEMPLATE
+    assert '필수 입력을 완료하면 제출할 수 있습니다.' in HTML_TEMPLATE
+    submit_start = HTML_TEMPLATE.index('function showFinalSubmitModal()')
+    submit_end = HTML_TEMPLATE.index('function hideFinalSubmitModal', submit_start)
+    submit_action = HTML_TEMPLATE[submit_start:submit_end]
+    assert 'const firstIncomplete = firstIncompleteScreenBefore(reviewScreen)' in submit_action
+    assert 'focusRequiredControl(firstIncomplete.screen, firstIncomplete.control)' in submit_action
+    assert 'return false;' in submit_action

@@ -89,7 +89,7 @@ def test_user_facing_screen_text_uses_navigation_names_without_internal_ids():
         ("SCREEN-03", "03", "해석 제품"),
         ("SCREEN-04", "04", "해석 조건"),
         ("SCREEN-05", "05", "Case Matrix"),
-        ("SCREEN-06", "06", "전체 확인·Preview·Word"),
+        ("SCREEN-06", "06", "전체 확인·최종 제출"),
     )
 
     for screen_id, number, label in navigation:
@@ -104,11 +104,11 @@ def test_user_facing_screen_text_uses_navigation_names_without_internal_ids():
     assert "SCREEN-06 전체 확인은 항상 열 수 있습니다." not in HTML_TEMPLATE
 
 
-def test_word_cta_is_only_in_the_screen_six_preview_workspace():
-    assert HTML_TEMPLATE.count('id="wordExportSlotBtn"') == 1
+def test_submit_cta_is_only_in_the_screen_six_preview_workspace():
+    assert HTML_TEMPLATE.count('id="finalSubmitBtn"') == 1
     screen_six_start = HTML_TEMPLATE.index('data-screen="SCREEN-06"')
-    word_cta = HTML_TEMPLATE.index('id="wordExportSlotBtn"')
-    assert word_cta > screen_six_start
+    submit_cta = HTML_TEMPLATE.index('id="finalSubmitBtn"')
+    assert submit_cta > screen_six_start
 
 
 def test_screen_one_guidance_preserves_copy_and_uses_subtle_emphasis():

@@ -39,6 +39,18 @@ CARD_TYPE_TO_GROUP_CODE = {
 }
 
 
+class SubmissionError(ValueError):
+    """Base error for a submission rejected before commit."""
+
+
+class DuplicateSubmissionError(SubmissionError):
+    """Raised when a request number has already been submitted."""
+
+
+class SubmissionMasterDataError(SubmissionError):
+    """Raised when required active DB master data is missing."""
+
+
 def _as_mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
@@ -67,7 +79,8 @@ def _schema_version(state: Mapping[str, Any]) -> str:
     return _clean_text(
         metadata.get("schema_version")
     ) or STATE_SCHEMA_VERSION
-    
+
+
 def _condition_metadata(card: Mapping[str, Any]) -> dict[str, Any]:
     card_type = _clean_text(card.get("type"))
 
@@ -89,6 +102,7 @@ def _condition_metadata(card: Mapping[str, Any]) -> dict[str, Any]:
         }
 
     return {}
+
 
 def _condition_instance_name(
     card: Mapping[str, Any],
@@ -133,7 +147,7 @@ def create_initial_submission(
     )
 
     if existing_request is not None:
-        raise ValueError(
+        raise DuplicateSubmissionError(
             f"request_no already exists: {request_no}"
         )
 
@@ -157,7 +171,7 @@ def create_initial_submission(
     )
 
     if missing_groups:
-        raise ValueError(
+        raise SubmissionMasterDataError(
             "condition groups are missing: "
             + ", ".join(missing_groups)
         )
@@ -286,7 +300,7 @@ def create_initial_submission(
             )
 
             if field_master is None:
-                raise ValueError(
+                raise SubmissionMasterDataError(
                     "condition field master is missing: "
                     f"{group_code}.{field_code}"
                 )
@@ -351,7 +365,8 @@ def create_initial_submission(
         "condition_value_count": value_count,
         "status": request_row.current_status,
     }
-    
+
+
 def save_initial_submission(
     *,
     state: Mapping[str, Any],

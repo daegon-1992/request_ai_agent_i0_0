@@ -4,7 +4,6 @@ import pytest
 
 from request_ai_agent_i0_0.agent_context import build_agent_context
 from request_ai_agent_i0_0.condition_fieldsets import make_condition_card
-from request_ai_agent_i0_0.constants import SUBMISSION_CONTACT
 from request_ai_agent_i0_0.conversation_store import ConversationSnapshot
 from request_ai_agent_i0_0.request_state_store import RequestStateSnapshot
 from request_ai_agent_i0_0.state import create_initial_state, sanitize_complete_product
@@ -183,13 +182,12 @@ def test_builds_detached_common_agent_context_from_current_snapshots():
         "remaining_steps": [
             {"key": "case_matrix_review", "action": "Case Matrix 확인"},
             {"key": "full_preview_review", "action": "전체 확인 화면에서 의뢰서 미리보기 검토"},
-            {"key": "word_generation", "action": "의뢰서 생성(Word)"},
-            {"key": "email_submission", "action": "생성한 Word 파일 이메일 제출"},
+            {"key": "submission_consent", "action": "최종 제출 내용 동의"},
+            {"key": "direct_submission", "action": "화면에서 해석 의뢰 최종 제출"},
         ],
         "submission": {
-            "method": "email",
-            "direct_screen_submission_available": False,
-            "recipient": SUBMISSION_CONTACT,
+            "method": "direct_screen",
+            "direct_screen_submission_available": True,
         },
     }
     assert context["validation"]["summary"] != request.state["review"]["validator"]["summary"]

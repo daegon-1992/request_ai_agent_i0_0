@@ -638,7 +638,8 @@ def test_direct_rag_endpoint_keeps_disabled_and_failed_paths_read_only(monkeypat
     assert failed_payload["state_changed"] is False
 
 
-def test_word_export_keeps_using_the_rendered_preview_payload():
+def test_word_export_keeps_using_the_rendered_preview_payload(monkeypatch):
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
     app = create_app()
     response = app.test_client().post(
         "/api/export/word",

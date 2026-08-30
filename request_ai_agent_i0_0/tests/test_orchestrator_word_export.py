@@ -1,7 +1,12 @@
+import importlib
+
 from request_ai_agent_i0_0.app import create_app
 from request_ai_agent_i0_0.state import create_initial_state, sanitize_state
 
 from test_orchestrator_chat_panel import UI_PATH, _panel_source, _run_panel_runtime
+
+
+app_module = importlib.import_module("request_ai_agent_i0_0.app")
 
 
 def _coverage_complete_state():
@@ -19,7 +24,8 @@ def _coverage_complete_state():
     return sanitize_state(state)
 
 
-def test_existing_word_endpoint_keeps_the_preview_dom_payload_and_docx_output():
+def test_existing_word_endpoint_keeps_the_preview_dom_payload_and_docx_output(monkeypatch):
+    monkeypatch.setitem(app_module.FEATURE_LOCKS, "word_export", True)
     response = create_app().test_client().post(
         "/api/export/word",
         json={"state": _coverage_complete_state(), "sections": [{"title": "Preview", "blocks": [{"type": "field", "label": "PMS", "value": "SERVER"}]}]},
