@@ -114,6 +114,16 @@ from .submission_service import (
     save_initial_submission,
     save_revision_submission,
 )
+from .review_service import (
+    AnalystNotFoundError,
+    InvalidAnalystRoleError,
+    InvalidReviewStateError,
+    ReviewCommentRequiredError,
+    ReviewPermissionError,
+    ReviewRequestNotFoundError,
+    save_accept_and_assign,
+    save_revision_request,
+)
 
 
 STAGE_NAME = "stage09_condition_state_progress_20260630"
@@ -259,6 +269,36 @@ def _submission_user_id() -> int:
         )
 
     return int(user_id)
+
+def _reviewer_user_id() -> int:
+    user_code = str(
+        os.getenv(
+            "REQUEST_AGENT_REVIEWER_USER_CODE",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not user_code:
+        raise RuntimeError(
+            "REQUEST_AGENT_REVIEWER_USER_CODE is not configured."
+        )
+
+    with SessionLocal() as db:
+        user_id = db.scalar(
+            select(User.id).where(
+                User.user_code == user_code,
+                User.role == "MANAGER",
+            )
+        )
+
+    if user_id is None:
+        raise RuntimeError(
+            f"review manager not found: {user_code}"
+        )
+
+    return int(user_id)
+
 
 def _db_upload_message(db_upload: Mapping[str, Any]) -> str:
     if not db_upload.get("enabled"):
@@ -3181,6 +3221,148 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
             }
         )
         return jsonify(response)
+
+    @app.post("/api/requests/<string:request_no>/review")
+    def review_request(request_no: str):
+        normalized_request_no = _clean_text(request_no)
+        payload = request.get_json(silent=True)
+        payload_map = payload if isinstance(payload, Mapping) else {}
+        action = _clean_text(payload_map.get("action")).upper()
+        comment = _clean_text(payload_map.get("comment"))
+
+        if action not in {"REQUEST_REVISION", "ACCEPT_AND_ASSIGN"}:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "invalid_review_action",
+                    "message": "지원하지 않는 검토 작업입니다.",
+                    "state_changed": False,
+                }
+            ), 400
+
+        if action == "REQUEST_REVISION" and not comment:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_comment_required",
+                    "message": "보완 요청 사유를 입력해 주세요.",
+                    "state_changed": False,
+                }
+            ), 400
+
+        analyst_user_code = _clean_text(
+            payload_map.get("analyst_user_code")
+        )
+        if action == "ACCEPT_AND_ASSIGN" and not analyst_user_code:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "analyst_required",
+                    "message": "배정할 해석담당자를 선택해 주세요.",
+                    "state_changed": False,
+                }
+            ), 400
+
+        try:
+            reviewer_user_id = _reviewer_user_id()
+            if action == "REQUEST_REVISION":
+                review_result = save_revision_request(
+                    request_no=normalized_request_no,
+                    reviewer_user_id=reviewer_user_id,
+                    comment=comment,
+                )
+            else:
+                review_result = save_accept_and_assign(
+                    request_no=normalized_request_no,
+                    reviewer_user_id=reviewer_user_id,
+                    analyst_user_code=analyst_user_code,
+                    comment=comment or None,
+                )
+        except ReviewRequestNotFoundError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_request_not_found",
+                    "message": "검토할 해석 의뢰를 찾을 수 없습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 404
+        except ReviewCommentRequiredError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_comment_required",
+                    "message": "보완 요청 사유를 입력해 주세요.",
+                    "state_changed": False,
+                }
+            ), 400
+        except AnalystNotFoundError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "analyst_not_found",
+                    "message": "선택한 해석담당자를 찾을 수 없습니다.",
+                    "state_changed": False,
+                }
+            ), 404
+        except InvalidAnalystRoleError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "invalid_analyst_role",
+                    "message": "해석담당자 역할의 사용자만 배정할 수 있습니다.",
+                    "state_changed": False,
+                }
+            ), 400
+        except ReviewPermissionError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_forbidden",
+                    "message": "관리자만 검토 작업을 수행할 수 있습니다.",
+                    "state_changed": False,
+                }
+            ), 403
+        except InvalidReviewStateError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_not_allowed",
+                    "message": "현재 상태에서는 검토 작업을 수행할 수 없습니다.",
+                    "request_no": normalized_request_no,
+                    "state_changed": False,
+                }
+            ), 409
+        except IntegrityError:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_conflict",
+                    "message": "검토 또는 담당자 배정 중 저장 충돌이 발생했습니다.",
+                    "state_changed": False,
+                }
+            ), 409
+        except (RuntimeError, SQLAlchemyError):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "review_unavailable",
+                    "message": "현재 검토 작업을 저장할 수 없습니다.",
+                    "state_changed": False,
+                }
+            ), 503
+
+        return jsonify(
+            {
+                "ok": True,
+                "request_no": review_result["request_no"],
+                "status": review_result["status"],
+                "revision_no": review_result["revision_no"],
+                "review_result": review_result,
+                "state_changed": True,
+            }
+        )
 
     @app.post("/api/chat/instant")
     def chat_instant():
