@@ -124,6 +124,16 @@ from .review_service import (
     save_accept_and_assign,
     save_revision_request,
 )
+from .result_service import (
+    AssignedAnalystMismatchError,
+    InvalidResultStateError,
+    ResultPermissionError,
+    ResultRequestNotFoundError,
+    ResultSummaryRequiredError,
+    ResultUserNotFoundError,
+    save_completion,
+    save_result,
+)
 
 
 STAGE_NAME = "stage09_condition_state_progress_20260630"
@@ -299,6 +309,12 @@ def _reviewer_user_id() -> int:
 
     return int(user_id)
 
+
+def _requester_user_code() -> str:
+    user_code = str(os.getenv("REQUEST_AGENT_SUBMITTER_USER_CODE", "") or "").strip()
+    if not user_code:
+        raise RuntimeError("REQUEST_AGENT_SUBMITTER_USER_CODE is not configured.")
+    return user_code
 
 def _db_upload_message(db_upload: Mapping[str, Any]) -> str:
     if not db_upload.get("enabled"):
@@ -3363,6 +3379,167 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
                 "state_changed": True,
             }
         )
+
+    @app.post("/api/requests/<string:request_no>/result")
+    def register_result(request_no: str):
+        normalized_request_no = _clean_text(request_no)
+        payload = request.get_json(silent=True)
+        payload_map = payload if isinstance(payload, Mapping) else {}
+        analyst_user_code = _clean_text(payload_map.get("analyst_user_code"))
+        result_summary = _clean_text(payload_map.get("result_summary"))
+
+        if not analyst_user_code:
+            return jsonify({
+                "ok": False,
+                "error": "analyst_required",
+                "message": "해석담당자 정보를 확인할 수 없습니다.",
+                "state_changed": False,
+            }), 400
+        if not result_summary:
+            return jsonify({
+                "ok": False,
+                "error": "result_summary_required",
+                "message": "해석 결과 요약을 입력해 주세요.",
+                "state_changed": False,
+            }), 400
+
+        try:
+            result = save_result(
+                request_no=normalized_request_no,
+                analyst_user_code=analyst_user_code,
+                result_summary=result_summary,
+            )
+        except ResultUserNotFoundError:
+            return jsonify({
+                "ok": False,
+                "error": "analyst_not_found",
+                "message": "해석담당자 정보를 찾을 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 404
+        except ResultRequestNotFoundError:
+            return jsonify({
+                "ok": False,
+                "error": "result_request_not_found",
+                "message": "결과를 등록할 해석 의뢰를 찾을 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 404
+        except ResultSummaryRequiredError:
+            return jsonify({
+                "ok": False,
+                "error": "result_summary_required",
+                "message": "해석 결과 요약을 입력해 주세요.",
+                "state_changed": False,
+            }), 400
+        except ResultPermissionError as exc:
+            message = "해석담당자만 결과를 등록할 수 있습니다." if "ANALYST" in str(exc) else "해당 의뢰의 담당 해석담당자만 결과를 등록할 수 있습니다."
+            return jsonify({
+                "ok": False,
+                "error": "result_forbidden",
+                "message": message,
+                "state_changed": False,
+            }), 403
+        except AssignedAnalystMismatchError:
+            return jsonify({
+                "ok": False,
+                "error": "analyst_not_assigned",
+                "message": "해당 의뢰에 배정된 해석담당자만 결과를 등록할 수 있습니다.",
+                "state_changed": False,
+            }), 403
+        except InvalidResultStateError:
+            return jsonify({
+                "ok": False,
+                "error": "result_not_allowed",
+                "message": "현재 상태에서는 결과를 등록할 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 409
+        except IntegrityError:
+            return jsonify({
+                "ok": False,
+                "error": "result_conflict",
+                "message": "결과 저장 중 충돌이 발생했습니다.",
+                "state_changed": False,
+            }), 409
+        except (RuntimeError, SQLAlchemyError):
+            return jsonify({
+                "ok": False,
+                "error": "result_unavailable",
+                "message": "현재 해석 결과를 저장할 수 없습니다.",
+                "state_changed": False,
+            }), 503
+
+        return jsonify({
+            "ok": True,
+            "request_no": result["request_no"],
+            "status": result["status"],
+            "revision_no": result["revision_no"],
+            "result": result,
+            "state_changed": True,
+        })
+
+    @app.post("/api/requests/<string:request_no>/complete")
+    def complete_request(request_no: str):
+        normalized_request_no = _clean_text(request_no)
+        payload = request.get_json(silent=True)
+        payload_map = payload if isinstance(payload, Mapping) else {}
+        comment = _clean_text(payload_map.get("comment"))
+
+        try:
+            requester_user_code = _requester_user_code()
+            result = save_completion(
+                request_no=normalized_request_no,
+                requester_user_code=requester_user_code,
+                comment=comment or None,
+            )
+        except ResultUserNotFoundError:
+            return jsonify({
+                "ok": False,
+                "error": "requester_not_found",
+                "message": "완료 처리할 의뢰자 정보를 찾을 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 404
+        except ResultRequestNotFoundError:
+            return jsonify({
+                "ok": False,
+                "error": "completion_request_not_found",
+                "message": "완료할 해석 의뢰를 찾을 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 404
+        except ResultPermissionError:
+            return jsonify({
+                "ok": False,
+                "error": "completion_forbidden",
+                "message": "해당 의뢰의 의뢰자만 완료 처리할 수 있습니다.",
+                "state_changed": False,
+            }), 403
+        except InvalidResultStateError:
+            return jsonify({
+                "ok": False,
+                "error": "completion_not_allowed",
+                "message": "현재 상태에서는 의뢰를 완료할 수 없습니다.",
+                "request_no": normalized_request_no,
+                "state_changed": False,
+            }), 409
+        except (RuntimeError, SQLAlchemyError):
+            return jsonify({
+                "ok": False,
+                "error": "completion_unavailable",
+                "message": "현재 의뢰 완료 처리를 저장할 수 없습니다.",
+                "state_changed": False,
+            }), 503
+
+        return jsonify({
+            "ok": True,
+            "request_no": result["request_no"],
+            "status": result["status"],
+            "revision_no": result["revision_no"],
+            "completion": result,
+            "state_changed": True,
+        })
 
     @app.post("/api/chat/instant")
     def chat_instant():
