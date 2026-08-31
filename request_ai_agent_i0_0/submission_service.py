@@ -369,7 +369,7 @@ def create_initial_submission(
     request_row = RequestModel(
         request_no=request_no,
         requester_user_id=submitted_by_user_id,
-        current_status="SUBMITTED",
+        current_status="UNDER_REVIEW",
         current_revision_no=0,
     )
 
@@ -392,7 +392,7 @@ def create_initial_submission(
         revision_id=revision_row.id,
         event_type="SUBMITTED",
         from_status=None,
-        to_status="SUBMITTED",
+        to_status="UNDER_REVIEW",
         actor_user_id=submitted_by_user_id,
         comment="최초 의뢰 제출",
     )
@@ -472,11 +472,6 @@ def create_revision_submission(
             "submitted user is not the request owner"
         )
 
-    if request_row.current_status == "RESUBMITTED":
-        raise DuplicateRevisionError(
-            f"request was already resubmitted: {normalized_request_no}"
-        )
-
     if request_row.current_status != "REVISION_REQUESTED":
         raise InvalidResubmissionStateError(
             "request status must be REVISION_REQUESTED"
@@ -539,14 +534,14 @@ def create_revision_submission(
 
     previous_status = request_row.current_status
     request_row.current_revision_no = next_revision_no
-    request_row.current_status = "RESUBMITTED"
+    request_row.current_status = "UNDER_REVIEW"
 
     event_row = WorkflowEvent(
         request_id=request_row.id,
         revision_id=revision_row.id,
         event_type="RESUBMITTED",
         from_status=previous_status,
-        to_status="RESUBMITTED",
+        to_status="UNDER_REVIEW",
         actor_user_id=submitted_by_user_id,
         comment="보완 의뢰 재제출",
     )

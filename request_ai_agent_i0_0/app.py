@@ -2972,7 +2972,7 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
 
         state.setdefault("review", {})
         state["review"]["submission"] = {
-            "status": "SUBMITTED",
+            "status": submission_result["status"],
             "can_submit": True,
             "submitted": True,
             "submitted_at": submitted_at,
@@ -3151,7 +3151,7 @@ def create_app(*, orchestrator_extractor: Extractor | None = None) -> Flask:
 
         state.setdefault("review", {})
         state["review"]["submission"] = {
-            "status": "RESUBMITTED",
+            "status": submission_result["status"],
             "can_submit": True,
             "submitted": True,
             "submitted_at": submitted_at,

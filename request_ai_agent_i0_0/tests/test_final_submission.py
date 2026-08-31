@@ -76,7 +76,7 @@ def test_submit_persists_consent_metadata_and_returns_saved_ids(monkeypatch):
             "workflow_event_id": 13,
             "condition_instance_count": 4,
             "condition_value_count": 10,
-            "status": "SUBMITTED",
+            "status": "UNDER_REVIEW",
         }
 
     monkeypatch.setattr(app_module, "state_with_validation", lambda _state: deepcopy(state))
@@ -97,7 +97,7 @@ def test_submit_persists_consent_metadata_and_returns_saved_ids(monkeypatch):
     assert consent["statement"] == app_module.SUBMISSION_CONSENT_STATEMENT
     assert consent["accepted_at"].endswith("+00:00")
     assert payload["submission_result"]["request_id"] == 11
-    assert payload["submission"]["status"] == "SUBMITTED"
+    assert payload["submission"]["status"] == "UNDER_REVIEW"
     assert payload["state_changed"] is True
 
 

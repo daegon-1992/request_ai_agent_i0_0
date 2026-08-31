@@ -186,6 +186,30 @@ def revision_db(monkeypatch):
     engine.dispose()
 
 
+def test_initial_submission_enters_under_review_and_records_submitted_event(
+    revision_db,
+):
+    with revision_db["session_factory"]() as db:
+        request_row = db.scalar(
+            select(Request).where(
+                Request.request_no == revision_db["request_no"]
+            )
+        )
+        events = db.scalars(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.request_id == request_row.id)
+            .order_by(WorkflowEvent.id)
+        ).all()
+
+    assert revision_db["initial_result"]["status"] == "UNDER_REVIEW"
+    assert request_row.current_revision_no == 0
+    assert request_row.current_status == "UNDER_REVIEW"
+    assert len(events) == 1
+    assert events[0].event_type == "SUBMITTED"
+    assert events[0].from_status is None
+    assert events[0].to_status == "UNDER_REVIEW"
+
+
 def _mark_revision_requested(revision_db) -> None:
     with revision_db["session_factory"].begin() as db:
         request_row = db.scalar(
@@ -207,7 +231,7 @@ def test_revision_submission_preserves_rev0_and_creates_rev1(revision_db):
     )
 
     assert result["revision_no"] == 1
-    assert result["status"] == "RESUBMITTED"
+    assert result["status"] == "UNDER_REVIEW"
     assert result["condition_instance_count"] > 0
     assert result["condition_value_count"] > 0
 
@@ -253,7 +277,7 @@ def test_revision_submission_preserves_rev0_and_creates_rev1(revision_db):
         )
 
     assert request_row.current_revision_no == 1
-    assert request_row.current_status == "RESUBMITTED"
+    assert request_row.current_status == "UNDER_REVIEW"
     assert [revision.revision_no for revision in revisions] == [0, 1]
     assert "revision_test_marker" not in revisions[0].snapshot_json["metadata"]
     assert revisions[1].snapshot_json["metadata"]["revision_test_marker"] == "rev1"
@@ -262,7 +286,7 @@ def test_revision_submission_preserves_rev0_and_creates_rev1(revision_db):
     assert events[-1].revision_id == revisions[1].id
     assert events[-1].event_type == "RESUBMITTED"
     assert events[-1].from_status == "REVISION_REQUESTED"
-    assert events[-1].to_status == "RESUBMITTED"
+    assert events[-1].to_status == "UNDER_REVIEW"
 
 
 def test_revision_submission_rejects_invalid_state_owner_and_repeat(
@@ -292,7 +316,7 @@ def test_revision_submission_rejects_invalid_state_owner_and_repeat(
         submitted_by_user_id=revision_db["requester_id"],
     )
 
-    with pytest.raises(DuplicateRevisionError):
+    with pytest.raises(InvalidResubmissionStateError):
         submission_service.save_revision_submission(
             request_no=revision_db["request_no"],
             state=changed_state,
@@ -468,7 +492,7 @@ def test_resubmit_api_persists_consent_and_returns_rev1(monkeypatch):
             "workflow_event_id": 33,
             "condition_instance_count": 4,
             "condition_value_count": 10,
-            "status": "RESUBMITTED",
+            "status": "UNDER_REVIEW",
         }
 
     monkeypatch.setattr(
@@ -490,7 +514,7 @@ def test_resubmit_api_persists_consent_and_returns_rev1(monkeypatch):
     assert consent["accepted"] is True
     assert consent["submitted_by_user_id"] == 7
     assert payload["submission_result"]["revision_no"] == 1
-    assert payload["submission"]["status"] == "RESUBMITTED"
+    assert payload["submission"]["status"] == "UNDER_REVIEW"
     assert payload["state_changed"] is True
 
 
