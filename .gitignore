@@ -9,3 +9,5 @@ __pycache__/
 docs/orchestrator_handoff/runs/
 docs/orchestrator_handoff/automation/automation_runner.lock
 docs/orchestrator_handoff/automation/automation_state.json
+
+.env
